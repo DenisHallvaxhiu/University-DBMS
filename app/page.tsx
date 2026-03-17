@@ -1,30 +1,18 @@
-import Image from "next/image";
-
-import Link from "next/link";
-
 export default function Home() {
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center bg-gray-100">
+    <main className="min-h-screen flex flex-col items-center pt-20 space-y-6">
       <h1 className="text-4xl font-bold mb-4">
         University Course Registration System
       </h1>
-      <p className="text-lg text-gray-700 mb-6">
-        This is my first Next.js frontend demo.
+      <p className="text-lg font-bold text-gray-600 mb-6">
+        Manage students, courses, and registrations easily
       </p>
-
-      <Link
-        href="/students"
-        className="px-4 py-2 bg-black text-white rounded-lg"
-      >
-        Go to Student Page
-      </Link>
-
-      <Link
-        href="/courses"
-        className="px-4 py-2 bg-black text-white rounded-lg"
-      >
-        Go to Course Page
-      </Link>
+      <div className="flex space-x-4">
+        <div className="card">Test</div>
+        <div className="card">123</div>
+        <div className="card">5</div>
+      </div>
     </main>
   );
 }
+
