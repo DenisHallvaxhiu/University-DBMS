@@ -10,7 +10,7 @@ export default function Home() {
           </h5>
           <div className="mb-4">
             <label
-              for="email"
+              htmlFor="email"
               className="block mb-2.5 text-sm font-bold"
             >
               Your email
