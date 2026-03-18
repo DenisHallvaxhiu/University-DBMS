@@ -37,3 +37,7 @@ body {
     @apply border border-gray-500 text-sm rounded-md  block w-full px-3 py-2.5;
   }
 }
+::-webkit-calendar-picker-indicator {
+  background-color: white;
+}
+

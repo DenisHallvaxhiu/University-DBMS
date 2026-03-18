@@ -49,7 +49,7 @@ export default function ParticleBackground() {
             value: 0.50,
           },
           size: {
-            value: { min: 1, max: 2 },
+            value: { min: 1, max: 4 },
           },
           move: {
             enable: true,

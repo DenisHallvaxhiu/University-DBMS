@@ -9,6 +9,8 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@next/env": "^16.1.7",
+    "@supabase/supabase-js": "^2.99.2",
     "@tsparticles/react": "^3.0.0",
     "@tsparticles/slim": "^3.9.1",
     "next": "16.1.6",
