@@ -162,7 +162,7 @@ export default function SignUp() {
                 Select your occupation
               </option>
               <option value="student">Student</option>
-              <option value="faculty">Faculty</option>
+              <option value="professor">Professor</option>
             </select>
           </div>
           <button
