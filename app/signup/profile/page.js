@@ -1,4 +1,5 @@
 "use client";
+
 import { useEffect, useState } from "react";
 import { supabase } from "../../../lib/supabaseClient";
 import { useRouter } from "next/navigation";
@@ -6,7 +7,6 @@ import { useRouter } from "next/navigation";
 export default function SignUpProfile() {
   const router = useRouter();
 
-  // Calculate max and min birth dates for age validation (15 to 100 years old)
   const today = new Date();
   const maxDate = new Date(
     today.getFullYear() - 15,
@@ -24,22 +24,35 @@ export default function SignUpProfile() {
     .toISOString()
     .split("T")[0];
 
-  // Fetch majors from the database and set them in state
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [birthDate, setBirthDate] = useState(maxDate);
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [phoneError, setPhoneError] = useState("");
+  const [address, setAddress] = useState("");
+  const [gender, setGender] = useState("");
+  const [major, setMajor] = useState([]);
+  const [selectedMajor, setSelectedMajor] = useState("");
+  const [majorError, setMajorError] = useState("");
+
   const getMajors = async () => {
     const { data: majorsData, error } = await supabase
       .from("department")
-      .select("department_id,department_name");
+      .select("department_id, department_name");
 
     if (error) {
       console.error("Error fetching majors:", error);
-      return [];
+      return;
     }
+
     setMajor(
-      majorsData.map((m) => ({ id: m.department_id, name: m.department_name })),
+      (majorsData || []).map((m) => ({
+        id: m.department_id,
+        name: m.department_name,
+      })),
     );
   };
 
-  // Function to format phone number input as (123) 456-7890
   const formatPhone = (value) => {
     const numbers = value.replace(/\D/g, "");
 
@@ -54,42 +67,50 @@ export default function SignUpProfile() {
 
   const handlePhoneChange = (e) => {
     const formatted = formatPhone(e.target.value);
-    setPhoneNumber(formatted); // was setPhone, now matches your state
+    setPhoneNumber(formatted);
   };
-
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [birthDate, setBirthDate] = useState(maxDate);
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [phoneError, setPhoneError] = useState("");
-  const [address, setAddress] = useState("");
-  const [gender, setGender] = useState("");
-  const [major, setMajor] = useState([]);
-  const [selectedMajor, setSelectedMajor] = useState("");
-  const [majorError, setMajorError] = useState("");
 
   useEffect(() => {
     const canAccess = sessionStorage.getItem("canAccessProfile");
-    // if (!canAccess) {
-    //   router.push("/signup");
-    // }
+    const occupation = sessionStorage.getItem("occupation");
+
+    if (canAccess !== "true" || !occupation) {
+      router.replace("/signup");
+      return;
+    }
+
     getMajors();
-  }, []);
+  }, [router]);
 
   const handleSubmit = async (e) => {
+    e.preventDefault();
+
     const occupation = sessionStorage.getItem("occupation");
+
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
+    if (!user) {
+      alert("No authenticated user found. Please sign up again.");
+      router.push("/signup");
+      return;
+    }
+
     if (phoneNumber.replace(/\D/g, "").length < 10) {
       setPhoneError("Please enter a valid phone number.");
       return;
+    } else {
+      setPhoneError("");
     }
+
     if (selectedMajor === "") {
       setMajorError("Please select your major.");
       return;
+    } else {
+      setMajorError("");
     }
+
     if (occupation === "student") {
       const { error } = await supabase.from("student").insert({
         first_name: firstName,
@@ -103,6 +124,7 @@ export default function SignUpProfile() {
         enrollment_year: new Date().getFullYear(),
         auth_id: user.id,
       });
+
       if (error) {
         console.error("Error inserting student:", error.message);
         alert("Something went wrong. Please try again.");
@@ -121,32 +143,37 @@ export default function SignUpProfile() {
         start_date: new Date().toISOString().split("T")[0],
         auth_id: user.id,
       });
+
       if (error) {
         console.error("Error inserting professor:", error.message);
         alert("Something went wrong. Please try again.");
         return;
       }
+    } else {
+      alert("Invalid occupation. Please sign up again.");
+      router.push("/signup");
+      return;
     }
 
+    sessionStorage.setItem("isLoggedIn", "true");
+    sessionStorage.setItem("role", occupation);
     sessionStorage.removeItem("canAccessProfile");
     sessionStorage.removeItem("occupation");
-    router.push("/");
+
+    router.push(occupation === "student" ? "/student" : "/professors");
   };
 
   return (
     <main className="flex-1 flex items-center justify-center">
       <form
-        action=""
         className="w-full flex items-center justify-center"
-        onSubmit={(e) => {
-          e.preventDefault();
-          handleSubmit(e);
-        }}
+        onSubmit={handleSubmit}
       >
         <div className="w-full max-w-sm bg-background p-6 border border-gray-500 rounded-2xl">
           <h5 className="text-xl font-semibold mb-6 text-center">
             Complete your profile
           </h5>
+
           <div className="mb-4">
             <label
               htmlFor="firstName"
@@ -164,6 +191,7 @@ export default function SignUpProfile() {
               onChange={(e) => setFirstName(e.target.value)}
             />
           </div>
+
           <div className="mb-4">
             <label
               htmlFor="lastName"
@@ -181,6 +209,7 @@ export default function SignUpProfile() {
               onChange={(e) => setLastName(e.target.value)}
             />
           </div>
+
           <div className="mb-4">
             <label
               htmlFor="birthDate"
@@ -192,7 +221,6 @@ export default function SignUpProfile() {
               type="date"
               id="birthDate"
               className="input-field"
-              placeholder="MM/DD/YYYY"
               required
               value={birthDate}
               max={maxDate}
@@ -200,6 +228,7 @@ export default function SignUpProfile() {
               onChange={(e) => setBirthDate(e.target.value)}
             />
           </div>
+
           <div className="mb-4">
             <label
               htmlFor="phoneNumber"
@@ -213,14 +242,12 @@ export default function SignUpProfile() {
               className="input-field"
               placeholder="(123) 456-7890"
               value={phoneNumber}
-              min={14}
-              maxLength={14} // (123) 456-7890 is exactly 14 characters
-              onChange={(e) => {
-                handlePhoneChange(e);
-              }}
+              maxLength={14}
+              onChange={handlePhoneChange}
             />
             <p className="text-red-500 text-sm mt-1">{phoneError}</p>
           </div>
+
           <div className="mb-4">
             <label htmlFor="address" className="block mb-2.5 text-sm font-bold">
               Address
@@ -235,6 +262,7 @@ export default function SignUpProfile() {
               onChange={(e) => setAddress(e.target.value)}
             />
           </div>
+
           <div className="mb-4">
             <label htmlFor="gender" className="block mb-2.5 text-sm font-bold">
               Gender
@@ -242,7 +270,7 @@ export default function SignUpProfile() {
             <select
               name="gender"
               id="gender"
-              className="input-field mb-4 bg-background text-white rounded  mt-4"
+              className="input-field mb-4 bg-background text-white rounded mt-4"
               value={gender}
               onChange={(e) => setGender(e.target.value)}
               required
@@ -253,6 +281,7 @@ export default function SignUpProfile() {
               <option value="other">Other</option>
             </select>
           </div>
+
           <div className="mb-4">
             <label htmlFor="major" className="block mb-2.5 text-sm font-bold">
               Major
@@ -265,9 +294,7 @@ export default function SignUpProfile() {
               onChange={(e) => setSelectedMajor(e.target.value)}
               required
             >
-              <option key="default" value="">
-                Select your major
-              </option>
+              <option value="">Select your major</option>
               {major.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.name}
@@ -276,6 +303,7 @@ export default function SignUpProfile() {
             </select>
             <p className="text-red-500 text-sm mt-1">{majorError}</p>
           </div>
+
           <button
             type="submit"
             className="w-full bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-2xl"
