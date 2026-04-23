@@ -12,6 +12,9 @@ export default function CourseCreateDrawer({
   const nextYear = new Date().getFullYear() + 1;
 
   const [saving, setSaving] = useState(false);
+  const [departmentCourses, setDepartmentCourses] = useState([]);
+  const [selectedPrereqs, setSelectedPrereqs] = useState([]);
+
   const [formData, setFormData] = useState({
     course_code: "",
     course_name: "",
@@ -26,6 +29,28 @@ export default function CourseCreateDrawer({
     end_time: "",
     capacity: "",
   });
+
+  useEffect(() => {
+    async function loadDepartmentCourses() {
+      if (!isOpen || !professorProfile?.department_id) return;
+
+      const { data, error } = await supabase
+        .from("course")
+        .select("course_id, course_code, course_name, department_id")
+        .eq("department_id", professorProfile.department_id)
+        .order("course_code");
+
+      if (error) {
+        console.error("Failed to load department courses:", error.message);
+        setDepartmentCourses([]);
+        return;
+      }
+
+      setDepartmentCourses(data || []);
+    }
+
+    loadDepartmentCourses();
+  }, [isOpen, professorProfile]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -43,6 +68,8 @@ export default function CourseCreateDrawer({
         end_time: "",
         capacity: "",
       });
+      setSelectedPrereqs([]);
+      setDepartmentCourses([]);
       setSaving(false);
     }
   }, [isOpen, nextYear]);
@@ -56,9 +83,16 @@ export default function CourseCreateDrawer({
     }));
   };
 
+  const togglePrerequisite = (courseId) => {
+    setSelectedPrereqs((prev) =>
+      prev.includes(courseId)
+        ? prev.filter((id) => id !== courseId)
+        : [...prev, courseId],
+    );
+  };
+
   const buildSchedule = () => {
     if (!formData.days || !formData.start_time || !formData.end_time) return "";
-
     return `${formData.days} ${formData.start_time}-${formData.end_time}`;
   };
 
@@ -80,9 +114,25 @@ export default function CourseCreateDrawer({
       return;
     }
 
+    const invalidPrereq = selectedPrereqs.some((prereqId) => {
+      const prereqCourse = departmentCourses.find(
+        (course) => course.course_id === prereqId,
+      );
+      return (
+        !prereqCourse ||
+        String(prereqCourse.department_id) !==
+          String(professorProfile.department_id)
+      );
+    });
+
+    if (invalidPrereq) {
+      alert("Prerequisites must belong to the same department.");
+      return;
+    }
+
     setSaving(true);
 
-    // 1. create the course
+    // 1. Create the course
     const { data: courseRow, error: courseError } = await supabase
       .from("course")
       .insert({
@@ -91,7 +141,9 @@ export default function CourseCreateDrawer({
         credits: formData.credits ? Number(formData.credits) : null,
         department_id: professorProfile.department_id,
         description: formData.description.trim(),
-        course_level: formData.course_level ? Number(formData.course_level) : null,
+        course_level: formData.course_level
+          ? Number(formData.course_level)
+          : null,
       })
       .select("course_id")
       .single();
@@ -103,7 +155,7 @@ export default function CourseCreateDrawer({
       return;
     }
 
-    // 2. create the first section
+    // 2. Create the first section
     const scheduleText = buildSchedule();
 
     const { error: sectionError } = await supabase.from("section").insert({
@@ -123,6 +175,27 @@ export default function CourseCreateDrawer({
         `Course was created, but creating the section failed: ${sectionError.message}`,
       );
       return;
+    }
+
+    // 3. Add prerequisites if selected
+    if (selectedPrereqs.length > 0) {
+      const prerequisiteRows = selectedPrereqs.map((prereqId) => ({
+        course_id: courseRow.course_id,
+        prerequisite_course_id: prereqId,
+      }));
+
+      const { error: prereqError } = await supabase
+        .from("prerequisite")
+        .insert(prerequisiteRows);
+
+      if (prereqError) {
+        setSaving(false);
+        console.error("Create prerequisite rows failed:", prereqError.message);
+        alert(
+          `Course and section were created, but saving prerequisites failed: ${prereqError.message}`,
+        );
+        return;
+      }
     }
 
     setSaving(false);
@@ -146,7 +219,8 @@ export default function CourseCreateDrawer({
             <p className="mt-1 text-sm text-gray-400">
               New course and first section for{" "}
               <span className="font-medium text-gray-200">
-                {professorProfile?.department?.department_name || "your department"}
+                {professorProfile?.department?.department_name ||
+                  "your department"}
               </span>
             </p>
           </div>
@@ -160,6 +234,7 @@ export default function CourseCreateDrawer({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* COURSE INFO */}
           <div>
             <h3 className="mb-4 text-lg font-semibold text-white">
               Course Information
@@ -257,6 +332,46 @@ export default function CourseCreateDrawer({
             </div>
           </div>
 
+          {/* PREREQUISITES */}
+          <div className="border-t border-white/10 pt-6">
+            <h3 className="mb-4 text-lg font-semibold text-white">
+              Prerequisites
+            </h3>
+
+            <p className="mb-4 text-sm text-gray-400">
+              Optional. You can choose prerequisite courses from your department
+              only.
+            </p>
+
+            {departmentCourses.length === 0 ? (
+              <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-gray-400">
+                No existing courses found in this department yet.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {departmentCourses.map((course) => (
+                  <label
+                    key={course.course_id}
+                    className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-gray-300"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedPrereqs.includes(course.course_id)}
+                      onChange={() => togglePrerequisite(course.course_id)}
+                      className="mt-1 h-4 w-4"
+                    />
+                    <div>
+                      <p className="font-medium text-white">
+                        {course.course_code} — {course.course_name}
+                      </p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* FIRST SECTION INFO */}
           <div className="border-t border-white/10 pt-6">
             <h3 className="mb-4 text-lg font-semibold text-white">
               First Section Information
@@ -331,9 +446,7 @@ export default function CourseCreateDrawer({
               </div>
 
               <div>
-                <label className="mb-2 block text-sm text-gray-300">
-                  Days
-                </label>
+                <label className="mb-2 block text-sm text-gray-300">Days</label>
                 <select
                   name="days"
                   value={formData.days}
@@ -383,7 +496,9 @@ export default function CourseCreateDrawer({
               </div>
 
               <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-gray-300">
-                <span className="font-medium text-white">Preview Schedule:</span>{" "}
+                <span className="font-medium text-white">
+                  Preview Schedule:
+                </span>{" "}
                 {formData.days && formData.start_time && formData.end_time
                   ? `${formData.days} ${formData.start_time}-${formData.end_time}`
                   : "Choose days and times"}

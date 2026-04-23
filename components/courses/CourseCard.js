@@ -1,6 +1,10 @@
-export default function CourseCard({ course }) {
+export default function CourseCard({ course, onClick }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-sm transition hover:bg-white/10 mb-5"  >
+    <button
+      type="button"
+      onClick={() => onClick?.(course)}
+      className="w-full rounded-2xl border border-white/10 bg-white/5 p-6 text-left backdrop-blur-sm transition hover:bg-white/10"
+    >
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <p className="text-xs uppercase tracking-wider text-blue-300">
@@ -31,6 +35,6 @@ export default function CourseCard({ course }) {
           {course.description || "No description available."}
         </p>
       </div>
-    </div>
+    </button>
   );
 }

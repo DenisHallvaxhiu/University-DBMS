@@ -28,7 +28,10 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
-    "**/*.mts"
-, "components/students/StudentCard.js", "components/students/StudentEditDrawer.js", "components/students/StudentPagination.js"  ],
+    "**/*.mts",
+    "components/students/StudentCard.js",
+    "components/students/StudentEditDrawer.js",
+    "components/students/StudentPagination.js"
+  ],
   "exclude": ["node_modules"]
 }

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
 import CourseCard from "../../components/courses/CourseCard";
 import CourseCreateDrawer from "../../components/courses/CourseCreateDrawer";
+import CourseDetailsDrawer from "../../components/courses/CourseDetailsDrawer";
 
 export default function CoursesPage() {
   const router = useRouter();
@@ -14,9 +15,12 @@ export default function CoursesPage() {
   const [courses, setCourses] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [professorProfile, setProfessorProfile] = useState(null);
+  const [studentProfile, setStudentProfile] = useState(null);
 
   const [loading, setLoading] = useState(true);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [selectedCourse, setSelectedCourse] = useState(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedDepartment, setSelectedDepartment] = useState("all");
@@ -59,23 +63,25 @@ export default function CoursesPage() {
 
       const userId = session?.user?.id;
 
-      const [{ data: courseData, error: courseError }, { data: deptData, error: deptError }] =
-        await Promise.all([
-          supabase.from("course").select(`
-            course_id,
-            course_code,
-            course_name,
-            credits,
+      const [
+        { data: courseData, error: courseError },
+        { data: deptData, error: deptError },
+      ] = await Promise.all([
+        supabase.from("course").select(`
+          course_id,
+          course_code,
+          course_name,
+          credits,
+          department_id,
+          description,
+          course_level,
+          department:department_id (
             department_id,
-            description,
-            course_level,
-            department:department_id (
-              department_id,
-              department_name
-            )
-          `),
-          supabase.from("department").select("department_id, department_name"),
-        ]);
+            department_name
+          )
+        `),
+        supabase.from("department").select("department_id, department_name"),
+      ]);
 
       if (!isMounted) return;
 
@@ -96,7 +102,8 @@ export default function CoursesPage() {
       if (role === "professor" && userId) {
         const { data: professorData, error: professorError } = await supabase
           .from("professor")
-          .select(`
+          .select(
+            `
             professor_id,
             first_name,
             last_name,
@@ -105,18 +112,53 @@ export default function CoursesPage() {
               department_id,
               department_name
             )
-          `)
+          `,
+          )
           .eq("auth_id", userId)
           .maybeSingle();
 
         if (!isMounted) return;
 
         if (professorError) {
-          console.error("Error fetching professor profile:", professorError.message);
+          console.error(
+            "Error fetching professor profile:",
+            professorError.message,
+          );
           setProfessorProfile(null);
         } else {
           setProfessorProfile(professorData || null);
         }
+
+        setStudentProfile(null);
+      }
+
+      if (role === "student" && userId) {
+        const { data: studentData, error: studentError } = await supabase
+          .from("student")
+          .select(
+            `
+            student_id,
+            first_name,
+            last_name,
+            major_department_id
+          `,
+          )
+          .eq("auth_id", userId)
+          .maybeSingle();
+
+        if (!isMounted) return;
+
+        if (studentError) {
+          console.error(
+            "Error fetching student profile:",
+            studentError.message,
+          );
+          setStudentProfile(null);
+        } else {
+          setStudentProfile(studentData || null);
+        }
+
+        setProfessorProfile(null);
       }
 
       setLoading(false);
@@ -148,14 +190,16 @@ export default function CoursesPage() {
   }, [courses, searchTerm, selectedDepartment]);
 
   const totalPages = Math.ceil(filteredCourses.length / coursesPerPage);
-  const safeCurrentPage = totalPages === 0 ? 1 : Math.min(currentPage, totalPages);
+  const safeCurrentPage =
+    totalPages === 0 ? 1 : Math.min(currentPage, totalPages);
 
   const paginatedCourses = useMemo(() => {
     const startIndex = (safeCurrentPage - 1) * coursesPerPage;
     return filteredCourses.slice(startIndex, startIndex + coursesPerPage);
   }, [filteredCourses, safeCurrentPage]);
 
-  const canCreateCourse = role === "professor" && professorProfile?.department_id;
+  const canCreateCourse =
+    role === "professor" && professorProfile?.department_id;
 
   const handleSearchChange = (e) => {
     setSearchTerm(e.target.value);
@@ -172,7 +216,7 @@ export default function CoursesPage() {
     setCurrentPage(page);
   };
 
-  const handleCourseCreated = async () => {
+  const refreshCourses = async () => {
     const { data, error } = await supabase.from("course").select(`
       course_id,
       course_code,
@@ -195,6 +239,20 @@ export default function CoursesPage() {
     setCourses(data || []);
   };
 
+  const handleCourseCreated = async () => {
+    await refreshCourses();
+  };
+
+  const handleCardClick = (course) => {
+    setSelectedCourse(course);
+    setIsDetailsOpen(true);
+  };
+
+  const handleCloseDetails = () => {
+    setSelectedCourse(null);
+    setIsDetailsOpen(false);
+  };
+
   if (checkingAuth) {
     return <div className="p-6 text-gray-300">Checking access...</div>;
   }
@@ -205,12 +263,15 @@ export default function CoursesPage() {
 
   return (
     <>
-      <div className="mx-auto mt-5 max-w-7xl px-4 mb-5">
-        <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-5">
+      <div className="mx-auto mt-5 mb-5 max-w-7xl px-4">
+        <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h1 className="text-3xl font-bold text-white">Courses</h1>
             <p className="mt-1 text-sm text-gray-400">
-              Browse course information{role === "professor" ? " and create courses for your department" : ""}
+              Browse course information
+              {role === "professor"
+                ? " and create courses for your department"
+                : ""}
             </p>
           </div>
 
@@ -258,7 +319,8 @@ export default function CoursesPage() {
         )}
 
         <div className="mb-4 text-sm text-gray-400">
-          Showing {paginatedCourses.length} of {filteredCourses.length} matching courses
+          Showing {paginatedCourses.length} of {filteredCourses.length} matching
+          courses
         </div>
 
         {filteredCourses.length === 0 ? (
@@ -269,7 +331,11 @@ export default function CoursesPage() {
           <>
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
               {paginatedCourses.map((course) => (
-                <CourseCard key={course.course_id} course={course} />
+                <CourseCard
+                  key={course.course_id}
+                  course={course}
+                  onClick={handleCardClick}
+                />
               ))}
             </div>
 
@@ -283,19 +349,21 @@ export default function CoursesPage() {
                   Prev
                 </button>
 
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                  <button
-                    key={page}
-                    onClick={() => goToPage(page)}
-                    className={`rounded-lg px-4 py-2 text-sm ${
-                      page === safeCurrentPage
-                        ? "bg-blue-500 text-white"
-                        : "border border-white/10 bg-white/5 text-gray-300"
-                    }`}
-                  >
-                    {page}
-                  </button>
-                ))}
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(
+                  (page) => (
+                    <button
+                      key={page}
+                      onClick={() => goToPage(page)}
+                      className={`rounded-lg px-4 py-2 text-sm ${
+                        page === safeCurrentPage
+                          ? "bg-blue-500 text-white"
+                          : "border border-white/10 bg-white/5 text-gray-300"
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ),
+                )}
 
                 <button
                   onClick={() => goToPage(safeCurrentPage + 1)}
@@ -315,6 +383,16 @@ export default function CoursesPage() {
         onClose={() => setIsCreateOpen(false)}
         onSaved={handleCourseCreated}
         professorProfile={professorProfile}
+      />
+
+      <CourseDetailsDrawer
+        isOpen={isDetailsOpen}
+        course={selectedCourse}
+        role={role}
+        professorProfile={professorProfile}
+        studentProfile={studentProfile}
+        onClose={handleCloseDetails}
+        onRefresh={refreshCourses}
       />
     </>
   );
